@@ -35,6 +35,7 @@ import type { ResolvedNetworkConfig } from "../shared/types";
 import { createHorizonServer, createSorobanServer } from "../shared/serverFactory";
 import { MAX_OPERATIONS_PER_TRANSACTION } from "./validateTransaction";
 import { validatePathPaymentPathLength } from "./pathPayment";
+import { warnOnExtremeOfferPrice } from "./offerPrice";
 import type {
   MemoParams,
   MemoValidationConfig,
@@ -1991,6 +1992,16 @@ export async function buildManageOfferTransaction(
 
   const priceResult = validateOfferPrice(params.price);
   if (priceResult.status === "error") return priceResult;
+
+  if (parseFloat(params.amount) > 0) {
+    warnOnExtremeOfferPrice(params.price, {
+      suppress: params.suppressPriceWarnings === true,
+      ...(params.priceWarningRange !== undefined && {
+        range: params.priceWarningRange,
+      }),
+      context: `Offer price (${params.sellingAssetCode}/${params.buyingAssetCode})`,
+    });
+  }
 
   // ── Memo ──────────────────────────────────────────────────────────────────
   const memoResult = validateMemoParams(params);
