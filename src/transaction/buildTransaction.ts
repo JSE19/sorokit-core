@@ -34,6 +34,7 @@ import { DEFAULT_TX_TIMEOUT_SECONDS } from "../shared/constants";
 import type { ResolvedNetworkConfig } from "../shared/types";
 import { createHorizonServer, createSorobanServer } from "../shared/serverFactory";
 import { MAX_OPERATIONS_PER_TRANSACTION } from "./validateTransaction";
+import { validatePathPaymentPathLength } from "./pathPayment";
 import type {
   MemoParams,
   MemoValidationConfig,
@@ -927,6 +928,12 @@ function resolvePathAssets(
  * Build a path payment transaction XDR.
  * Use mode "strict-send" to send an exact amount, or "strict-receive" to receive an exact amount.
  * Returns the unsigned XDR ready for signing.
+ *
+ * Path semantics:
+ * - Omit `path` to let Horizon discover a route, including a direct route with
+ *   no intermediate assets (a valid Stellar direct conversion).
+ * - If `path` is provided it must contain 1–5 intermediate assets. An explicit
+ *   empty array is rejected as ambiguous; omit it instead.
  */
 export async function buildPathPayment(
   horizonUrl: string,
@@ -948,6 +955,14 @@ export async function buildPathPayment(
       console.warn(message);
     }
   }
+
+  if (params.path !== undefined) {
+    const explicitPathLength = validatePathPaymentPathLength(
+      params.path.length,
+    );
+    if (explicitPathLength.status === "error") return explicitPathLength;
+  }
+
   const sendAssetResult = resolveAsset(
     params.sendAssetCode,
     params.sendAssetIssuer,
@@ -1059,6 +1074,12 @@ export async function buildPathPayment(
         }
       }
     }
+
+    const finalPathLength = validatePathPaymentPathLength(
+      finalPath?.length ?? 0,
+      { allowEmpty: true },
+    );
+    if (finalPathLength.status === "error") return finalPathLength;
 
     const pathResult = resolvePathAssets(finalPath);
     if (pathResult.status === "error") return pathResult;
